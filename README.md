@@ -1,0 +1,55 @@
+# 소형 전산실 콜드플레이트 수랭 3D 디지털 트윈 시뮬레이터
+(Compact Data Center In-Rack Cold Plate 3D Digital Twin Simulator)
+
+ASME 및 IEEE 최신 논문 검증 데이터를 기반으로 제작된 소형 전산실 인랙(In-Rack) 콜드플레이트(Cold Plate) 수랭 도입 의사결정 및 안전 설계 검증용 3D 디지털 트윈 웹 시뮬레이터입니다.
+
+---
+
+## 🚀 주요 기능 및 실증 시나리오
+
+1. **3가지 방열(Heat Rejection) 아키텍처 비교**
+   - **L2A (Liquid-to-Air)**: 실내 무배관 CDU 라디에이터 방열 (소규모 1~2랙 권장)
+   - **L2L (Liquid-to-Liquid)**: 하부 배관을 통해 외기/외부 칠러로 직접 방열
+   - **RDHx 하이브리드**: 콜드플레이트(75%) + 후면 도어 열교환기(RDHx, 25%) 100% 실내 중립 랙
+
+2. **바닥 슬래브 활하중(500 kgf/m²) 분산 가대 계산기**
+   - 수랭 고하중 랙(1,050kg)의 집중 하중을 H형강 가대 및 확장 스키드로 분산
+   - 2타일(0.72m²) 무보강 시 초과 위험 경고 vs 6타일(2.16m²) 안전 분산 시각화
+
+3. **엔지니어링 안전 설계 및 비상사고 드릴(Drill)**
+   - **QDC 누수 감지 & 3단계 자동 차단**: 광학 센서 → 솔레노이드 밸브 폐쇄 → BMC Graceful Shutdown
+   - **상용전원 정전 테스트**: 온라인 UPS 직결 여부에 따른 15초 내 냉각수 비등(Boiling) 방지 실증
+   - **장마철 고습도 결로 방지**: 이슬점(Dew Point) +3°C 자동 추적 제어
+
+4. **KEC 규정 준수 이격 설계**
+   - 누수 우려 수배관(우측 매니폴드)과 수직 PDU(좌측 전원부) 완전 물리적 좌우 분리 배치
+
+---
+
+## 💻 로컬 실행 방법
+
+브라우저에서 `index.html`을 바로 열거나 로컬 웹 서버를 실행할 수 있습니다.
+
+### 방법 1. 파이썬 웹서버 (권장)
+```bash
+python -m http.server 3000
+```
+브라우저에서 `http://localhost:3000` 접속
+
+### 방법 2. Node.js (npx serve)
+```bash
+npx serve .
+```
+
+---
+
+## 🌐 Vercel 원클릭 배포
+
+### 방법 A: Vercel CLI (10초 배포)
+```bash
+npx vercel --prod
+```
+
+### 방법 B: GitHub 연동
+1. 본 폴더의 `index.html`과 `vercel.json`을 GitHub 저장소에 푸시합니다.
+2. [vercel.com/new](https://vercel.com/new)에서 저장소를 Import하고 **Deploy**를 누르면 즉시 글로벌 CDN에 배포됩니다.

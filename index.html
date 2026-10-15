@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>소형 전산실 콜드플레이트 수랭 3D 디지털 트윈 시뮬레이터</title>
+    <meta name="description" content="ASME 및 IEEE 논문 검증 기반 소형 전산실 인랙(In-Rack) 콜드플레이트 수랭 시스템, 슬래브 하중 분산 가대, 누수 감지 BMC 인터락 3D 시뮬레이터">
+    <meta name="theme-color" content="#090d16">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="소형 전산실 콜드플레이트 수랭 3D 디지털 트윈 시뮬레이터">
+    <meta property="og:description" content="인랙 CDU 방열(L2A/L2L/RDHx), 바닥 활하중(500kgf/m²) 분산 가대, 3단계 누수 자동 차단 시뮬레이션">
+    <!-- Vercel 배포 시 favicon.ico 404 에러 방지를 위한 인라인 SVG 파비콘 -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f172a'/%3E%3Cpath d='M32 10C32 10 16 28 16 40C16 48.8 23.2 56 32 56C40.8 56 48 48.8 48 40C48 28 32 10 32 10Z' fill='%2338bdf8'/%3E%3Ccircle cx='32' cy='40' r='8' fill='%23090d16'/%3E%3C/svg%3E">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', 'Inter', sans-serif;
+            background-color: #090d16;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(51, 65, 85, 0.7);
+        }
+        .pulse-danger {
+            animation: pulseDanger 1.2s infinite;
+        }
+        @keyframes pulseDanger {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            50% { box-shadow: 0 0 18px 4px rgba(239, 68, 68, 0.9); }
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col select-none">
+
+    <!-- 상단 헤더 바 -->
+    <header class="glass-panel sticky top-0 z-30 px-4 py-2.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <div id="statusIndicator" class="w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]"></div>
+            <div>
+                <h1 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                    소형 전산실 인랙(In-Rack) 콜드플레이트 3D 시뮬레이터
+                    <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">ASME / IEEE 논문 검증 기반</span>
+                </h1>
+                <p id="statusSubtext" class="text-xs text-slate-400">정상 운전 중 · 냉각수(PG25) 순환 및 이슬점 추적 활성</p>
+            </div>
+        </div>
+
+        <!-- 카메라 프리셋 버튼 -->
+        <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-xs text-slate-400 mr-1 hidden md:inline">시점 전환:</span>
+            <button onclick="setCameraPreset('overview')" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">전체 전산실</button>
+            <button onclick="setCameraPreset('rear')" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/40 transition">후면 매니폴드·PDU 분리</button>
+            <button onclick="setCameraPreset('cutaway')" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 transition">서버 내부 콜드플레이트</button>
+            <button onclick="setCameraPreset('floor')" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 transition">하부 슬래브 하중 가대</button>
+            <span class="h-4 w-px bg-slate-700 mx-1 hidden sm:inline-block"></span>
+            <button onclick="openVercelModal()" class="px-3 py-1 text-xs font-bold rounded-lg bg-gradient-to-r from-indigo-600 to-sky-500 hover:from-indigo-500 hover:to-sky-400 text-white shadow-md shadow-sky-500/20 border border-sky-400/40 transition flex items-center gap-1.5">
+                <span>▲</span> Vercel 배포 패키지
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 p-3 max-w-[1800px] w-full mx-auto">
+
+        <!-- 좌측: 설비 구성 및 비상 시나리오 제어 패널 -->
+        <section class="lg:col-span-3 flex flex-col gap-3 order-2 lg:order-1">
+            <!-- 1. 방열 아키텍처 및 선택적 수랭 구성 -->
+            <div class="glass-panel rounded-xl p-3.5 flex flex-col gap-3">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-sky-400">1. 방열 방식 및 선택적 수랭 구성</h2>
+                    <span class="text-[11px] text-slate-400">제2~3장 기준</span>
+                </div>
+
+                <div>
+                    <label class="text-xs text-slate-300 font-medium block mb-1.5">방열(Heat Rejection) 아키텍처</label>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <button id="btnModeL2A" onclick="setCoolingMode('L2A')" class="py-1.5 px-2 rounded-lg text-xs font-semibold bg-sky-600 text-white border border-sky-400 transition">L2A 무배관</button>
+                        <button id="btnModeL2L" onclick="setCoolingMode('L2L')" class="py-1.5 px-2 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 transition">L2L 외부칠러</button>
+                        <button id="btnModeHybrid" onclick="setCoolingMode('HYBRID')" class="py-1.5 px-2 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 transition">RDHx 하이브리드</button>
+                    </div>
+                    <p id="modeDesc" class="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+                        배관 공사 없이 CDU 라디에이터가 실내로 열을 방출하며 기존 항온항습기(CRAC)가 처리합니다.
+                    </p>
+                </div>
+
+                <!-- 수랭 서버 노드 수 슬라이더 -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-300">단일 랙 내 수랭 GPU 서버 수량</span>
+                        <span id="gpuCountLabel" class="font-bold text-sky-400">4대 (32 kW)</span>
+                    </div>
+                    <input id="gpuCountSlider" type="range" min="1" max="4" step="1" value="4" oninput="updateConfig()" class="w-full accent-sky-500 cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-slate-500">
+                        <span>1대 (부분 도입)</span>
+                        <span>2대 (하이브리드)</span>
+                        <span>4대 (고밀도 완비)</span>
+                    </div>
+                </div>
+
+                <!-- 하중 분산 스키드 타일 수 슬라이더 -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-300">하중 분산 스키드(Spreader) 면적</span>
+                        <span id="tileCountLabel" class="font-bold text-emerald-400">6타일 (2.16 m²)</span>
+                    </div>
+                    <input id="tileCountSlider" type="range" min="2" max="8" step="2" value="6" oninput="updateConfig()" class="w-full accent-emerald-500 cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-slate-500">
+                        <span>2타일 (무보강 0.72m²)</span>
+                        <span>6타일 (권장 2.16m²)</span>
+                        <span>8타일 (2.88m²)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 필수 안전 설계 토글 -->
+            <div class="glass-panel rounded-xl p-3.5 flex flex-col gap-2.5">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-emerald-400">2. 핵심 엔지니어링 안전 설비</h2>
+                    <span class="text-[11px] text-slate-400">제3~6장 기준</span>
+                </div>
+
+                <label class="flex items-center justify-between cursor-pointer py-1">
+                    <div>
+                        <span class="text-xs font-medium text-slate-200 block">블랭킹 패널(공판) 장착</span>
+                        <span class="text-[11px] text-slate-400">빈 U 공간 배기열 역류 차단 (ASME 2025)</span>
+                    </div>
+                    <input id="chkBlanking" type="checkbox" checked onchange="updateConfig()" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
+                </label>
+
+                <label class="flex items-center justify-between cursor-pointer py-1 border-t border-slate-800/70">
+                    <div>
+                        <span class="text-xs font-medium text-slate-200 block">인랙 CDU 온라인 UPS 직결</span>
+                        <span class="text-[11px] text-slate-400">정전 시 펌프 정지 및 15초 내 비등 방지</span>
+                    </div>
+                    <input id="chkUps" type="checkbox" checked onchange="updateConfig()" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
+                </label>
+
+                <label class="flex items-center justify-between cursor-pointer py-1 border-t border-slate-800/70">
+                    <div>
+                        <span class="text-xs font-medium text-slate-200 block">이슬점(Dew Point) +3°C 자동 추적</span>
+                        <span class="text-[11px] text-slate-400">장마철 고습도 환경 배관 표면 결로 방지</span>
+                    </div>
+                    <input id="chkDewPoint" type="checkbox" checked onchange="updateConfig()" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
+                </label>
+            </div>
+
+            <!-- 3. 비상 사고 및 고장 모드 실험 (Drill) -->
+            <div class="glass-panel rounded-xl p-3.5 flex flex-col gap-2">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-rose-400">3. 비상 시나리오 실증 테스트</h2>
+                    <span class="text-[11px] text-slate-400">클릭 시 즉시 재현</span>
+                </div>
+
+                <button onclick="triggerLeakScenario()" class="w-full py-2 px-3 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-left transition flex items-center justify-between group">
+                    <div>
+                        <div class="text-xs font-bold text-rose-300 group-hover:text-rose-200">💧 QDC 냉각수 누수 발생 시뮬레이션</div>
+                        <div class="text-[11px] text-slate-400">광학 센서 감지 → 전자밸브 차단 → BMC 셧다운</div>
+                    </div>
+                    <span class="text-xs text-rose-400 font-bold">실행 ▶</span>
+                </button>
+
+                <button onclick="triggerPowerOutage()" class="w-full py-2 px-3 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-left transition flex items-center justify-between group">
+                    <div>
+                        <div class="text-xs font-bold text-amber-300 group-hover:text-amber-200">⚡ 전산실 상용전원 정전 발생 테스트</div>
+                        <div class="text-[11px] text-slate-400">UPS 직결 여부에 따른 냉각수 비등(Boiling) 비교</div>
+                    </div>
+                    <span class="text-xs text-amber-400 font-bold">실행 ▶</span>
+                </button>
+
+                <button onclick="triggerHumiditySpike()" class="w-full py-2 px-3 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-left transition flex items-center justify-between group">
+                    <div>
+                        <div class="text-xs font-bold text-sky-300 group-hover:text-sky-200">🌧️ 장마철 실내 습도 급상승 (80% RH)</div>
+                        <div class="text-[11px] text-slate-400">이슬점 상승(25°C)에 따른 결로 방지 제어 확인</div>
+                    </div>
+                    <span class="text-xs text-sky-400 font-bold">실행 ▶</span>
+                </button>
+
+                <button onclick="resetSimulation()" class="w-full mt-1 py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-semibold text-slate-200 transition text-center">
+                    🔄 모든 시나리오 초기화 (정상 운전 복구)
+                </button>
+            </div>
+        </section>
+
+        <!-- 중앙: 3D 시뮬레이션 뷰포트 -->
+        <section class="lg:col-span-6 flex flex-col gap-3 order-1 lg:order-2">
+            <div class="glass-panel rounded-xl relative overflow-hidden flex-1 min-h-[440px] sm:min-h-[540px] flex flex-col">
+                <!-- 상단 플로팅 범례 -->
+                <div class="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+                    <div class="flex flex-wrap items-center gap-2 bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800 text-[11px]">
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span>공급 냉각수(저온)</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>환수 냉각수(고온)</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span>좌측 수직 PDU(전원)</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span>슬래브 하중 분산 가대</span>
+                    </div>
+                    <div class="bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 text-[11px] text-slate-400">
+                        마우스 드래그: 360° 회전 · 휠: 확대/축소
+                    </div>
+                </div>
+
+                <!-- 3D 캔버스 컨테이너 -->
+                <div id="canvasContainer" class="w-full flex-1 relative cursor-grab active:cursor-grabbing"></div>
+
+                <!-- 하단 플로팅 실시간 알림 배너 -->
+                <div id="SimulationBanner" class="p-3 bg-slate-900/95 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div class="flex items-start sm:items-center gap-2.5">
+                        <span id="bannerBadge" class="px-2 py-0.5 text-[11px] font-bold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0">정상 가동</span>
+                        <p id="bannerText" class="text-xs text-slate-200 leading-snug">
+                            우측 수랭 랙(GPU 서버 4대)의 칩 발열 75%를 콜드플레이트가 흡수하고, 좌측 공랭 랙은 기존처럼 공랭으로 혼합 운영 중입니다.
+                        </p>
+                    </div>
+                    <span id="paperRefBadge" class="text-[11px] text-sky-400 shrink-0 font-medium">근거: Heydari et al. (ASME, 2024)</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 우측: 실시간 센서 텔레메트리 및 인터락 로그 -->
+        <section class="lg:col-span-3 flex flex-col gap-3 order-3">
+            <!-- 1. 열수력학 및 공조 센서 계기판 -->
+            <div class="glass-panel rounded-xl p-3.5 flex flex-col gap-3">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400">실시간 열수력학 텔레메트리</h2>
+                    <span id="pumpStatusBadge" class="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold">CDU 펌프 정상</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
+                        <div class="text-[11px] text-slate-400">GPU 최고 접합부 온도</div>
+                        <div id="valGpuTemp" class="text-lg font-bold text-emerald-400 mt-0.5">64.2 °C</div>
+                        <div id="subGpuTemp" class="text-[10px] text-slate-500">한계 기준: 85°C 이하</div>
+                    </div>
+                    <div class="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
+                        <div class="text-[11px] text-slate-400">냉각수 공급 / 환수</div>
+                        <div id="valCoolantTemp" class="text-lg font-bold text-sky-400 mt-0.5">32.0 / 43.5 °C</div>
+                        <div id="subDewPoint" class="text-[10px] text-slate-500">실내 이슬점: 16.5°C (안전)</div>
+                    </div>
+                    <div class="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
+                        <div class="text-[11px] text-slate-400">CDU 순환 유량 / 차압</div>
+                        <div id="valFlowRate" class="text-base font-bold text-slate-100 mt-0.5">42.0 LPM / 85 kPa</div>
+                        <div id="subValveState" class="text-[10px] text-emerald-400">솔레노이드 밸브: 개방(OPEN)</div>
+                    </div>
+                    <div class="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
+                        <div class="text-[11px] text-slate-400">실내 항온항습기 부하</div>
+                        <div id="valRoomAirLoad" class="text-base font-bold text-amber-300 mt-0.5">32.0 kW</div>
+                        <div id="subRoomAirLoad" class="text-[10px] text-slate-500">권장 공조 용량: 40.0 kW</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 바닥 슬래브 하중 안전성 검증 -->
+            <div class="glass-panel rounded-xl p-3.5 flex flex-col gap-2.5">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-emerald-400">바닥 슬래브 하중 검증 (제5장)</h2>
+                    <span id="loadSafetyBadge" class="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold">슬래브 기준 통과</span>
+                </div>
+
+                <div class="flex justify-between text-xs">
+                    <span class="text-slate-400">수랭 랙 총중량 (<span id="valRackWeight">1,050</span> kg)</span>
+                    <span id="valAreaLoad" class="font-bold text-emerald-400">486.1 kgf/m²</span>
+                </div>
+
+                <!-- 하중 게이지 바 -->
+                <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden relative">
+                    <!-- 500 kgf/m2 기준선 (최대 1500 기준 33.3% 지점) -->
+                    <div class="absolute top-0 bottom-0 left-[33.3%] w-0.5 bg-amber-400 z-10" title="일반 전산실 허용 활하중 500 kgf/m²"></div>
+                    <div id="loadProgressBar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 32.4%;"></div>
+                </div>
+                <div class="flex justify-between text-[10px] text-slate-400">
+                    <span>0</span>
+                    <span class="text-amber-400 font-semibold">▲ 허용 기준 (500 kgf/m²)</span>
+                    <span>1,500 kgf/m²</span>
+                </div>
+            </div>
+
+            <!-- 3. 3단계 누수 감지 및 BMC 자동 차단 시퀀스 로그 -->
+            <div class="glass-panel rounded-xl p-3.5 flex-1 flex flex-col gap-2 min-h-[210px]">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-sky-400">인터락 & BMC 제어 로그 (제4장)</h2>
+                    <span class="text-[10px] text-slate-400">IEEE ITherm 시퀀스</span>
+                </div>
+                <div id="eventLogContainer" class="flex-1 overflow-y-auto space-y-1.5 pr-1 text-[11px] font-mono">
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Vercel 배포 전용 모달 (index.html & vercel.json 원클릭 다운로드 및 배포 안내) -->
+    <div id="vercelModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="glass-panel rounded-2xl max-w-2xl w-full p-5 sm:p-6 border border-slate-700 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-white text-slate-950 flex items-center justify-center font-black text-lg">▲</div>
+                    <div>
+                        <h3 class="text-base font-bold text-white">Vercel 원클릭 배포 패키지 생성기</h3>
+                        <p class="text-xs text-slate-400">별도 빌드 설정(Build Step) 없이 정적 사이트로 즉시 배포 가능한 파일 구성입니다.</p>
+                    </div>
+                </div>
+                <button onclick="closeVercelModal()" class="text-slate-400 hover:text-white px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-xs font-semibold transition">닫기 ✕</button>
+            </div>
+
+            <!-- 1단계: 배포용 파일 다운로드 -->
+            <div class="bg-slate-900/90 rounded-xl p-4 border border-slate-800 flex flex-col gap-3">
+                <div class="text-xs font-bold text-sky-400 uppercase tracking-wider">Step 1. 배포용 파일 컴퓨터에 저장 (새 폴더에 함께 저장)</div>
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    Vercel은 기본 진입 파일로 <code class="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300">index.html</code>을 인식합니다. 아래 버튼을 누르면 현재 시뮬레이터가 깨끗한 초기 상태의 <code class="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300">index.html</code>과 <code class="px-1.5 py-0.5 rounded bg-slate-800 text-emerald-300">vercel.json</code>으로 즉시 다운로드됩니다.
+                </p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    <button onclick="downloadIndexHtml()" class="py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-sky-600/20 transition">
+                        <span>📥</span> 1. index.html 다운로드 (필수)
+                    </button>
+                    <button onclick="downloadVercelJson()" class="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 font-bold text-xs flex items-center justify-center gap-2 transition">
+                        <span>⚙️</span> 2. vercel.json 다운로드 (권장)
+                    </button>
+                </div>
+                <div id="downloadFeedback" class="hidden text-xs text-emerald-400 font-medium bg-emerald-950/40 border border-emerald-500/30 rounded-lg px-3 py-2"></div>
+            </div>
+
+            <!-- 2단계: 2가지 배포 방법 안내 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <!-- 방법 A: GitHub 연동 -->
+                <div class="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 flex flex-col gap-2">
+                    <div class="text-xs font-bold text-white flex items-center justify-between">
+                        <span>방법 A. GitHub 연동 배포 (가장 권장)</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-300">무료·자동배포</span>
+                    </div>
+                    <ol class="text-xs text-slate-300 space-y-1.5 list-decimal list-inside leading-relaxed">
+                        <li>GitHub에 새 저장소(Repository)를 생성합니다.</li>
+                        <li>다운로드한 <b>index.html</b>과 <b>vercel.json</b>을 업로드(Commit)합니다.</li>
+                        <li><a href="https://vercel.com/new" target="_blank" rel="noopener noreferrer" class="text-sky-400 underline hover:text-sky-300">vercel.com/new</a>에 접속해 해당 저장소를 <b>Import</b>합니다.</li>
+                        <li>Framework Preset은 <b>Other</b> 그대로 두고 <b>Deploy</b>를 클릭하면 10초 내 배포가 완료됩니다.</li>
+                    </ol>
+                </div>
+
+                <!-- 방법 B: Vercel CLI 즉시 배포 -->
+                <div class="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 flex flex-col gap-2 justify-between">
+                    <div>
+                        <div class="text-xs font-bold text-white flex items-center justify-between mb-2">
+                            <span>방법 B. 터미널 CLI 10초 배포</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">Git 불필요</span>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed mb-2">
+                            새 폴더(예: <code class="text-amber-300">cold-plate-sim</code>) 안에 <code class="text-amber-300">index.html</code>과 <code class="text-emerald-300">vercel.json</code>을 넣은 뒤, 해당 폴더 터미널에서 아래 명령어를 실행하세요:
+                        </p>
+                    </div>
+                    <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between gap-2">
+                        <code class="text-xs text-sky-300 font-mono">npx vercel --prod</code>
+                        <button onclick="copyCommand('npx vercel --prod', this)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-200 font-semibold shrink-0 transition">복사</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- vercel.json 미리보기 -->
+            <div class="bg-slate-950/90 rounded-xl p-3.5 border border-slate-800">
+                <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-[11px] font-semibold text-slate-400">포함된 vercel.json 라우팅 및 보안 헤더 구성</span>
+                    <button onclick="copyVercelJsonText(this)" class="text-[11px] text-sky-400 hover:text-sky-300 font-semibold">JSON 코드 복사</button>
+                </div>
+                <pre id="vercelJsonPreview" class="text-[11px] text-slate-300 font-mono overflow-x-auto leading-relaxed">{
+  "version": 2,
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 시뮬레이션 상태 변수 ---
+        const simState = {
+            mode: 'L2A',               // 'L2A', 'L2L', 'HYBRID'
+            gpuNodes: 4,               // 1 ~ 4 대 (대당 8kW 가정)
+            spreaderTiles: 6,          // 2 ~ 8 타일 (1타일 = 0.36 m²)
+            blankingPanels: true,      // 빈 U 공간 공판 장착 여부
+            cduOnUps: true,            // 인랙 CDU 온라인 UPS 직결 여부
+            dewPointTracking: true,    // 이슬점 +3°C 자동 추적 여부
+            // 비상 시나리오 상태
+            leakActive: false,
+            leakStage: 0,              // 0: 정상, 1: 1차 광학감지 경보, 2: 솔레노이드/펌프 차단, 3: BMC 서버 셧다운
+            powerOutage: false,
+            outageElapsedSec: 0,
+            highHumidity: false,
+            // 실시간 물리량
+            gpuTemp: 64.2,
+            supplyTemp: 32.0,
+            returnTemp: 43.5,
+            dewPoint: 16.5,
+            flowLpm: 42.0,
+            pressureKpa: 85.0
+        };
+
+        let leakTimers = [];
+
+        // --- 로그 출력 헬퍼 함수 ---
+        function addLog(tag, message, level = 'info') {
+            const container = document.getElementById('eventLogContainer');
+            if (!container) return;
+            const timeStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+            const colorMap = {
+                info: 'text-slate-300 border-slate-700 bg-slate-900/60',
+                success: 'text-emerald-300 border-emerald-500/40 bg-emerald-950/30',
+                warn: 'text-amber-300 border-amber-500/40 bg-amber-950/40',
+                danger: 'text-rose-300 border-rose-500/50 bg-rose-950/50 font-semibold'
+            };
+            const item = document.createElement('div');
+            item.className = `p-1.5 rounded border ${colorMap[level] || colorMap.info} leading-snug`;
+            item.innerHTML = `<span class="text-slate-500">[${timeStr}]</span> <span class="font-bold">[${tag}]</span> ${message}`;
+            container.prepend(item);
+        }
+
+        let scene, camera, renderer, container;
+        let cameraSpherical = { radius: 9.2, theta: 0.55, phi: 1.15 };
+        let cameraTarget = new THREE.Vector3(0, 1.4, 0);
+        let isDragging = false, prevMouse = { x: 0, y: 0 };
+
+        // 3D 오브젝트 그룹 레퍼런스
+        const objects3D = {
+            gpuServers: [],
+            blankingPanels: [],
+            spreaderBeams: [],
+            l2lPipes: null,
+            rdhxDoor: null,
+            l2aExhaustArrows: [],
+            coolantParticles: [],
+            recircParticles: [],
+            leakDroplets: [],
+            boilingSteam: [],
+            leakSensorBeacon: null
+        };
+
+        function initThreeJS() {
+            container = document.getElementById('canvasContainer');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x070b14);
+            scene.fog = new THREE.FogExp2(0x070b14, 0.035);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+            updateCameraPosition();
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // 조명 설정
+            const ambientLight = new THREE.AmbientLight(0xdbeafe, 0.65);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+            dirLight.position.set(6, 10, 7);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            const pointLightBlue = new THREE.PointLight(0x38bdf8, 0.8, 8);
+            pointLightBlue.position.set(1.5, 2.2, 1.5);
+            scene.add(pointLightBlue);
+
+            buildServerRoomScene();
+            setupInteractionEvents();
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function buildServerRoomScene() {
+            // 1. 콘크리트 본바닥(슬래브)
+            const slabGeo = new THREE.BoxGeometry(10, 0.25, 7);
+            const slabMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
+            const slab = new THREE.Mesh(slabGeo, slabMat);
+            slab.position.set(0, -0.75, 0);
+            scene.add(slab);
+
+            // 슬래브 그리드 라인
+            const gridHelper = new THREE.GridHelper(10, 20, 0x334155, 0x1e293b);
+            gridHelper.position.y = -0.62;
+            scene.add(gridHelper);
+
+            // 2. 악세스 플로어 (600x600mm 타일 및 지주) - 높이 y = 0.0
+            const tileGroup = new THREE.Group();
+            const tileMat = new THREE.MeshStandardMaterial({
+                color: 0x334155,
+                transparent: true,
+                opacity: 0.42,
+                roughness: 0.4
+            });
+            const tileEdgeMat = new THREE.LineBasicMaterial({ color: 0x64748b });
+
+            for (let x = -3.6; x <= 3.6; x += 0.8) {
+                for (let z = -2.4; z <= 2.4; z += 0.8) {
+                    const tGeo = new THREE.BoxGeometry(0.78, 0.04, 0.78);
+                    const tMesh = new THREE.Mesh(tGeo, tileMat);
+                    tMesh.position.set(x, 0, z);
+                    tileGroup.add(tMesh);
+
+                    const edges = new THREE.EdgesGeometry(tGeo);
+                    const line = new THREE.LineSegments(edges, tileEdgeMat);
+                    line.position.copy(tMesh.position);
+                    tileGroup.add(line);
+
+                    // 악세스 플로어 페데스탈(지주)
+                    const pedGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.6, 8);
+                    const pedMat = new THREE.MeshStandardMaterial({ color: 0x475569 });
+                    const ped = new THREE.Mesh(pedGeo, pedMat);
+                    ped.position.set(x - 0.36, -0.31, z - 0.36);
+                    tileGroup.add(ped);
+                }
+            }
+            scene.add(tileGroup);
+
+            // 3. 슬래브 직결 철제 가대 (Base Frame) & 하중 분산 스키드 (Spreader Beam)
+            buildSpreaderFrame();
+
+            // 4. 좌측: 기존 공랭 서버 랙 (시나리오 A 비교용, x = -1.7)
+            buildAirCooledRack(-1.7, 0);
+
+            // 5. 우측: 선택적 도입 인랙(In-Rack) 콜드플레이트 수랭 랙 (x = 0.8)
+            buildLiquidCooledRack(0.8, 0);
+
+            // 6. 우측 벽면 실내 항온항습기(CRAC) 및 하부 L2L 칠러 배관
+            buildExternalCoolingInfra();
+
+            // 7. 냉각수 순환 입자 및 공기 역류/누수 입자 초기화
+            initParticles();
+        }
+
+        function buildSpreaderFrame() {
+            const beamMat = new THREE.MeshStandardMaterial({ color: 0x10b981, metalness: 0.6, roughness: 0.3 });
+            // 4개의 수직 각관 기둥 (슬래브 y=-0.62 에서 플로어 y=0.02 까지 직결)
+            const legPositions = [
+                [0.8 - 0.55, 0 - 0.75],
+                [0.8 + 0.55, 0 - 0.75],
+                [0.8 - 0.55, 0 + 0.75],
+                [0.8 + 0.55, 0 + 0.75]
+            ];
+            legPositions.forEach(([lx, lz]) => {
+                const legGeo = new THREE.BoxGeometry(0.08, 0.64, 0.08);
+                const leg = new THREE.Mesh(legGeo, beamMat);
+                leg.position.set(lx, -0.3, lz);
+                scene.add(leg);
+            });
+
+            // 확장형 하중 분산 스키드 (Spreader Beams) - 타일 수에 따라 폭이 변화함
+            for (let i = 0; i < 4; i++) {
+                const skidGeo = new THREE.BoxGeometry(1, 0.07, 0.1);
+                const skid = new THREE.Mesh(skidGeo, beamMat);
+                skid.position.set(0.8, -0.58, -0.75 + i * 0.5);
+                scene.add(skid);
+                objects3D.spreaderBeams.push(skid);
+            }
+        }
+
+        function buildAirCooledRack(rx, rz) {
+            const group = new THREE.Group();
+            group.position.set(rx, 0, rz);
+
+            // 랙 프레임
+            const frameGeo = new THREE.BoxGeometry(1.1, 3.0, 1.4);
+            const frameEdges = new THREE.EdgesGeometry(frameGeo);
+            const frameLine = new THREE.LineSegments(frameEdges, new THREE.LineBasicMaterial({ color: 0x64748b }));
+            frameLine.position.y = 1.52;
+            group.add(frameLine);
+
+            // 일반 공랭 서버들
+            const srvMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
+            for (let i = 0; i < 6; i++) {
+                const sMesh = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.32, 1.25), srvMat);
+                sMesh.position.set(0, 0.4 + i * 0.42, 0);
+                group.add(sMesh);
+            }
+            scene.add(group);
+        }
+
+        function buildLiquidCooledRack(rx, rz) {
+            const rackGroup = new THREE.Group();
+            rackGroup.position.set(rx, 0, rz);
+
+            // 1. 고하중 랙 외곽 프레임
+            const frameGeo = new THREE.BoxGeometry(1.2, 3.2, 1.6);
+            const frameEdges = new THREE.EdgesGeometry(frameGeo);
+            const frameLine = new THREE.LineSegments(frameEdges, new THREE.LineBasicMaterial({ color: 0x38bdf8 }));
+            frameLine.position.y = 1.62;
+            rackGroup.add(frameLine);
+
+            // 2. 최하단 물받이(Drip Tray) 및 광학식 누수 감지 센서
+            const trayGeo = new THREE.BoxGeometry(1.18, 0.05, 1.58);
+            const trayMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.5 });
+            const tray = new THREE.Mesh(trayGeo, trayMat);
+            tray.position.set(0, 0.05, 0);
+            rackGroup.add(tray);
+
+            // 광학 누수 센서 비콘
+            const beaconGeo = new THREE.SphereGeometry(0.08, 16, 16);
+            const beaconMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
+            objects3D.leakSensorBeacon = new THREE.Mesh(beaconGeo, beaconMat);
+            objects3D.leakSensorBeacon.position.set(0.42, 0.12, -0.65);
+            rackGroup.add(objects3D.leakSensorBeacon);
+
+            // 3. 인랙 CDU (하단 4U~6U 공간)
+            const cduGeo = new THREE.BoxGeometry(1.1, 0.52, 1.45);
+            const cduMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.4, roughness: 0.3 });
+            const cduMesh = new THREE.Mesh(cduGeo, cduMat);
+            cduMesh.position.set(0, 0.36, 0);
+            rackGroup.add(cduMesh);
+
+            // 4. 최상단 ToR 네트워크 스위치 (공랭 혼용 시나리오 B)
+            const swGeo = new THREE.BoxGeometry(1.06, 0.22, 1.3);
+            const swMat = new THREE.MeshStandardMaterial({ color: 0x475569 });
+            const swMesh = new THREE.Mesh(swGeo, swMat);
+            swMesh.position.set(0, 2.95, 0);
+            rackGroup.add(swMesh);
+
+            // 5. 4대의 고밀도 수랭 GPU 서버 슬롯 (Cutaway 내부 콜드플레이트 시각화)
+            for (let i = 0; i < 4; i++) {
+                const slotY = 0.85 + i * 0.5;
+                const srvGroup = new THREE.Group();
+                srvGroup.position.set(0, slotY, 0);
+
+                // 반투명 서버 섀시
+                const chassisGeo = new THREE.BoxGeometry(1.06, 0.36, 1.35);
+                const chassisMat = new THREE.MeshStandardMaterial({
+                    color: 0x1e293b,
+                    transparent: true,
+                    opacity: 0.72
+                });
+                const chassis = new THREE.Mesh(chassisGeo, chassisMat);
+                srvGroup.add(chassis);
+
+                // 내부 GPU 칩 + 구리 콜드플레이트 2기
+                const cpMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.2 });
+                for (let g = -0.24; g <= 0.24; g += 0.48) {
+                    const cpMesh = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.38), cpMat);
+                    cpMesh.position.set(g, 0.04, 0.1);
+                    srvGroup.add(cpMesh);
+                }
+
+                // 서버 내부 지류 배관 (파란 공급 / 빨간 환수)
+                const tubeIn = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8),
+                    new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+                );
+                tubeIn.rotation.x = Math.PI / 2;
+                tubeIn.position.set(0.28, 0.06, -0.35);
+                srvGroup.add(tubeIn);
+
+                const tubeOut = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xf43f5e })
+                );
+                tubeOut.rotation.x = Math.PI / 2;
+                tubeOut.position.set(0.42, 0.06, -0.35);
+                srvGroup.add(tubeOut);
+
+                // 무누수 퀵 커넥터 (QDC)
+                const qdcGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.12, 12);
+                qdcGeo.rotateX(Math.PI / 2);
+                const qdcSupply = new THREE.Mesh(qdcGeo, new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9 }));
+                qdcSupply.position.set(0.32, 0.06, -0.7);
+                srvGroup.add(qdcSupply);
+
+                const qdcReturn = qdcSupply.clone();
+                qdcReturn.position.set(0.46, 0.06, -0.7);
+                srvGroup.add(qdcReturn);
+
+                rackGroup.add(srvGroup);
+                objects3D.gpuServers.push({ group: srvGroup, coldPlates: cpMat, y: slotY });
+
+                // 해당 슬롯의 전면 블랭킹 패널 (서버 미장착 시 빈 U 공간 차단용)
+                const bpGeo = new THREE.BoxGeometry(1.08, 0.42, 0.04);
+                const bpMat = new THREE.MeshStandardMaterial({ color: 0x10b981, transparent: true, opacity: 0.85 });
+                const bpMesh = new THREE.Mesh(bpGeo, bpMat);
+                bpMesh.position.set(0, slotY, 0.78);
+                bpMesh.visible = false;
+                rackGroup.add(bpMesh);
+                objects3D.blankingPanels.push(bpMesh);
+            }
+
+            // 6. 랙 후면 우측: 수직 매니폴드 (Supply 파란색 / Return 빨간색)
+            const supplyManifold = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.045, 0.045, 2.6, 16),
+                new THREE.MeshStandardMaterial({ color: 0x0ea5e9, metalness: 0.5 })
+            );
+            supplyManifold.position.set(0.32, 1.6, -0.74);
+            rackGroup.add(supplyManifold);
+
+            const returnManifold = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.045, 0.045, 2.6, 16),
+                new THREE.MeshStandardMaterial({ color: 0xe11d48, metalness: 0.5 })
+            );
+            returnManifold.position.set(0.46, 1.6, -0.74);
+            rackGroup.add(returnManifold);
+
+            // 7. 랙 후면 좌측: 수직형 PDU 전원분배장치 (KEC 규정에 따라 수배관과 좌/우 완전 분리)
+            const pduGeo = new THREE.BoxGeometry(0.12, 2.7, 0.08);
+            const pduMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 });
+            const pduMesh = new THREE.Mesh(pduGeo, pduMat);
+            pduMesh.position.set(-0.48, 1.65, -0.74);
+            rackGroup.add(pduMesh);
+
+            // 8. 하이브리드 모드용 후면 도어 열교환기 (RDHx)
+            const rdhxGeo = new THREE.BoxGeometry(1.18, 3.1, 0.12);
+            const rdhxMat = new THREE.MeshStandardMaterial({
+                color: 0x06b6d4,
+                transparent: true,
+                opacity: 0.45,
+                metalness: 0.6
+            });
+            objects3D.rdhxDoor = new THREE.Mesh(rdhxGeo, rdhxMat);
+            objects3D.rdhxDoor.position.set(0, 1.6, -0.88);
+            objects3D.rdhxDoor.visible = false;
+            rackGroup.add(objects3D.rdhxDoor);
+
+            scene.add(rackGroup);
+        }
+
+        function buildExternalCoolingInfra() {
+            // 전산실 실내 항온항습기 (CRAC) - 우측 외곽 배치
+            const cracGroup = new THREE.Group();
+            cracGroup.position.set(3.4, 0, -0.6);
+            const cracBox = new THREE.Mesh(
+                new THREE.BoxGeometry(1.1, 2.7, 1.2),
+                new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 })
+            );
+            cracBox.position.y = 1.35;
+            cracGroup.add(cracBox);
+            scene.add(cracGroup);
+
+            // L2L 플로어 하부 2차 냉수 배관 (외부 칠러 연결용)
+            const l2lGroup = new THREE.Group();
+            const pipeSupply = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.05, 0.05, 3.6, 12),
+                new THREE.MeshStandardMaterial({ color: 0x0284c7 })
+            );
+            pipeSupply.rotation.z = Math.PI / 2;
+            pipeSupply.position.set(2.6, -0.35, -0.3);
+            l2lGroup.add(pipeSupply);
+
+            const pipeReturn = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.05, 0.05, 3.6, 12),
+                new THREE.MeshStandardMaterial({ color: 0xe11d48 })
+            );
+            pipeReturn.rotation.z = Math.PI / 2;
+            pipeReturn.position.set(2.6, -0.35, -0.5);
+            l2lGroup.add(pipeReturn);
+
+            l2lGroup.visible = false;
+            scene.add(l2lGroup);
+            objects3D.l2lPipes = l2lGroup;
+        }
+
+        function initParticles() {
+            // 1. 매니폴드 및 서버 내부 냉각수 유량 입자
+            const pGeo = new THREE.SphereGeometry(0.032, 8, 8);
+            for (let i = 0; i < 28; i++) {
+                const isSupply = i % 2 === 0;
+                const pMat = new THREE.MeshBasicMaterial({ color: isSupply ? 0x38bdf8 : 0xfb7185 });
+                const p = new THREE.Mesh(pGeo, pMat);
+                scene.add(p);
+                objects3D.coolantParticles.push({
+                    mesh: p,
+                    isSupply,
+                    progress: Math.random()
+                });
+            }
+
+            // 2. 블랭킹 패널 미장착 시 열기 역류(Thermal Short-Circuit) 입자
+            const rGeo = new THREE.SphereGeometry(0.045, 8, 8);
+            const rMat = new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.8 });
+            for (let i = 0; i < 18; i++) {
+                const rm = new THREE.Mesh(rGeo, rMat);
+                rm.visible = false;
+                scene.add(rm);
+                objects3D.recircParticles.push({
+                    mesh: rm,
+                    progress: Math.random()
+                });
+            }
+
+            // 3. QDC 누수 발생 시 비산/낙하 액적 입자
+            const lGeo = new THREE.SphereGeometry(0.035, 8, 8);
+            const lMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
+            for (let i = 0; i < 22; i++) {
+                const lm = new THREE.Mesh(lGeo, lMat);
+                lm.visible = false;
+                scene.add(lm);
+                objects3D.leakDroplets.push({
+                    mesh: lm,
+                    progress: Math.random(),
+                    vx: (Math.random() - 0.5) * 0.3,
+                    vz: (Math.random() - 0.5) * 0.3
+                });
+            }
+        }
+
+        function setCoolingMode(mode) {
+            simState.mode = mode;
+            const modes = ['L2A', 'L2L', 'HYBRID'];
+            modes.forEach(m => {
+                const btn = document.getElementById(m === 'L2A' ? 'btnModeL2A' : m === 'L2L' ? 'btnModeL2L' : 'btnModeHybrid');
+                if (m === mode) {
+                    btn.className = 'py-1.5 px-2 rounded-lg text-xs font-semibold bg-sky-600 text-white border border-sky-400 transition';
+                } else {
+                    btn.className = 'py-1.5 px-2 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 transition';
+                }
+            });
+
+            const descEl = document.getElementById('modeDesc');
+            if (mode === 'L2A') {
+                descEl.textContent = '배관 공사 없이 CDU 라디에이터가 실내로 열을 방출하며 기존 항온항습기(CRAC)가 처리합니다 (소규모 1~2랙 권장).';
+            } else if (mode === 'L2L') {
+                descEl.textContent = '플로어 하부 2차 냉수 배관을 통해 열의 80%를 외부 소형 칠러로 직접 배출하여 실내 공조 부담을 최소화합니다.';
+            } else {
+                descEl.textContent = '콜드플레이트(75%)와 랙 후면 냉각 도어 RDHx(25%)를 결합하여 랙 내부에서 발열 100%를 종결합니다.';
+            }
+
+            if (objects3D.l2lPipes) objects3D.l2lPipes.visible = (mode === 'L2L' || mode === 'HYBRID');
+            if (objects3D.rdhxDoor) objects3D.rdhxDoor.visible = (mode === 'HYBRID');
+
+            addLog('설비모드', `${mode} 방열 아키텍처로 전환되었습니다.`, 'info');
+            updateConfig();
+        }
+
+        function updateConfig() {
+            simState.gpuNodes = parseInt(document.getElementById('gpuCountSlider').value, 10);
+            simState.spreaderTiles = parseInt(document.getElementById('tileCountSlider').value, 10);
+            simState.blankingPanels = document.getElementById('chkBlanking').checked;
+            simState.cduOnUps = document.getElementById('chkUps').checked;
+            simState.dewPointTracking = document.getElementById('chkDewPoint').checked;
+
+            const totalItKw = simState.gpuNodes * 8; // 노드당 8kW
+            document.getElementById('gpuCountLabel').textContent = `${simState.gpuNodes}대 (${totalItKw} kW)`;
+
+            // 3D 서버 가시성 및 빈 슬롯 블랭킹 패널 업데이트
+            for (let i = 0; i < 4; i++) {
+                const active = i < simState.gpuNodes;
+                objects3D.gpuServers[i].group.visible = active;
+                objects3D.blankingPanels[i].visible = (!active && simState.blankingPanels);
+            }
+
+            // 하중 분산 스키드 면적 및 단위면적당 하중 계산 (제5장 수식 적용)
+            const areaM2 = (simState.spreaderTiles * 0.36).toFixed(2);
+            document.getElementById('tileCountLabel').textContent = `${simState.spreaderTiles}타일 (${areaM2} m²)`;
+
+            // 3D 하중 분산 가대 폭 조정
+            const beamWidth = 0.6 * (simState.spreaderTiles / 2);
+            objects3D.spreaderBeams.forEach(b => {
+                b.scale.x = beamWidth;
+            });
+
+            // 랙 총중량: 기본(CDU+랙+냉각수 370kg) + GPU 서버 대당 170kg
+            const totalWeightKg = 370 + simState.gpuNodes * 170;
+            const areaLoad = totalWeightKg / parseFloat(areaM2);
+            document.getElementById('valRackWeight').textContent = totalWeightKg.toLocaleString();
+            const areaLoadEl = document.getElementById('valAreaLoad');
+            const loadBadge = document.getElementById('loadSafetyBadge');
+            const loadBar = document.getElementById('loadProgressBar');
+
+            areaLoadEl.textContent = `${areaLoad.toFixed(1)} kgf/m²`;
+            const pct = Math.min(100, (areaLoad / 1500) * 100);
+            loadBar.style.width = `${pct}%`;
+
+            if (areaLoad <= 500) {
+                areaLoadEl.className = 'font-bold text-emerald-400';
+                loadBar.className = 'h-full bg-emerald-500 transition-all duration-300';
+                loadBadge.className = 'text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold';
+                loadBadge.textContent = '슬래브 기준 통과 (안전)';
+            } else {
+                areaLoadEl.className = 'font-bold text-rose-400';
+                loadBar.className = 'h-full bg-rose-500 transition-all duration-300';
+                loadBadge.className = 'text-[11px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-semibold';
+                loadBadge.textContent = '활하중(500) 초과 위험!';
+            }
+
+            recalculateThermodynamics();
+        }
+
+        function recalculateThermodynamics() {
+            const totalItKw = simState.gpuNodes * 8;
+            // 블랭킹 패널 미장착 & 빈 슬롯 존재 시 열 단락(Thermal Short-circuit) 페널티 발생 (Radmard et al., 2025)
+            const hasEmptyUnsealedSlot = (simState.gpuNodes < 4 && !simState.blankingPanels);
+            const recircPenalty = hasEmptyUnsealedSlot ? 8.5 : 0;
+
+            // 습도 시나리오에 따른 이슬점 결정
+            simState.dewPoint = simState.highHumidity ? 25.0 : 16.5;
+
+            // 기본 공급수 온도 결정
+            let baseSupply = simState.mode === 'L2A' ? 31.0 : 24.0;
+            if (simState.highHumidity && simState.dewPointTracking) {
+                baseSupply = Math.max(baseSupply, simState.dewPoint + 3.0); // 이슬점 +3°C 자동 상향
+            }
+
+            if (!simState.powerOutage && !simState.leakActive) {
+                simState.supplyTemp = baseSupply + (recircPenalty * 0.35);
+                simState.returnTemp = simState.supplyTemp + (7.5 + simState.gpuNodes * 1.1);
+                simState.gpuTemp = simState.supplyTemp + 28.0 + (simState.gpuNodes * 1.2) + recircPenalty;
+                simState.flowLpm = 18.0 + simState.gpuNodes * 6.0;
+                simState.pressureKpa = 65.0 + simState.gpuNodes * 5.0;
+            }
+
+            // 실내 항온항습기(CRAC) 열부하 계산
+            let roomAirLoadKw = totalItKw;
+            if (simState.mode === 'L2L') roomAirLoadKw = totalItKw * 0.22; // 잔여 발열만 실내로
+            if (simState.mode === 'HYBRID') roomAirLoadKw = totalItKw * 0.03; // RDHx가 거의 전량 흡수
+
+            document.getElementById('valRoomAirLoad').textContent = `${roomAirLoadKw.toFixed(1)} kW`;
+            document.getElementById('subRoomAirLoad').textContent =
+                simState.mode === 'L2A'
+                    ? `권장 항온항습기 용량: ${(totalItKw * 1.25).toFixed(1)} kW 이상`
+                    : `외부 칠러 방열: ${(totalItKw - roomAirLoadKw).toFixed(1)} kW 처리`;
+
+            // 결로 위험 여부 표시
+            const dewMargin = simState.supplyTemp - simState.dewPoint;
+            const subDewEl = document.getElementById('subDewPoint');
+            if (dewMargin <= 0.5) {
+                subDewEl.className = 'text-[10px] text-rose-400 font-bold';
+                subDewEl.textContent = `⚠️ 결로 발생 위험! (이슬점 ${simState.dewPoint}°C ≥ 공급수)`;
+            } else {
+                subDewEl.className = 'text-[10px] text-emerald-400';
+                subDewEl.textContent = `이슬점: ${simState.dewPoint.toFixed(1)}°C (여유 +${dewMargin.toFixed(1)}°C 안전)`;
+            }
+
+            // 열 단락 경고 배너 업데이트
+            if (hasEmptyUnsealedSlot && !simState.leakActive && !simState.powerOutage) {
+                setBanner(
+                    'warn',
+                    '열 단락(역류) 주의',
+                    '빈 U 공간에 블랭킹 패널(공판)이 없어 후면 고온 배기열이 전면으로 역류하여 냉각 온도가 상승했습니다.',
+                    '근거: Radmard et al. (ASME InterPACK, 2025)'
+                );
+            } else if (!simState.leakActive && !simState.powerOutage && !simState.highHumidity) {
+                setBanner(
+                    'normal',
+                    '정상 가동',
+                    `선택적 수랭 랙(GPU 서버 ${simState.gpuNodes}대)이 안정적으로 열교환 중이며 바닥 하중이 ${simState.spreaderTiles}타일로 분산되었습니다.`,
+                    '근거: Heydari et al. (ASME, 2024)'
+                );
+            }
+
+            updateTelemetryDOM();
+        }
+
+        function updateTelemetryDOM() {
+            const gpuEl = document.getElementById('valGpuTemp');
+            gpuEl.textContent = `${simState.gpuTemp.toFixed(1)} °C`;
+            gpuEl.className = simState.gpuTemp >= 85
+                ? 'text-lg font-bold text-rose-400 animate-pulse'
+                : simState.gpuTemp >= 75
+                    ? 'text-lg font-bold text-amber-400'
+                    : 'text-lg font-bold text-emerald-400';
+
+            document.getElementById('valCoolantTemp').textContent =
+                `${simState.supplyTemp.toFixed(1)} / ${simState.returnTemp.toFixed(1)} °C`;
+            document.getElementById('valFlowRate').textContent =
+                `${simState.flowLpm.toFixed(1)} LPM / ${simState.pressureKpa.toFixed(0)} kPa`;
+        }
+
+        function setBanner(type, badgeText, msg, paperRef) {
+            const ind = document.getElementById('statusIndicator');
+            const badge = document.getElementById('bannerBadge');
+            const text = document.getElementById('bannerText');
+            const ref = document.getElementById('paperRefBadge');
+
+            text.textContent = msg;
+            ref.textContent = paperRef;
+            badge.textContent = badgeText;
+
+            if (type === 'danger') {
+                ind.className = 'w-3.5 h-3.5 rounded-full bg-rose-500 pulse-danger';
+                badge.className = 'px-2 py-0.5 text-[11px] font-bold rounded bg-rose-500/20 text-rose-300 border border-rose-500/50 shrink-0';
+            } else if (type === 'warn') {
+                ind.className = 'w-3.5 h-3.5 rounded-full bg-amber-400 shadow-[0_0_10px_#fbbf24]';
+                badge.className = 'px-2 py-0.5 text-[11px] font-bold rounded bg-amber-500/20 text-amber-300 border border-amber-500/50 shrink-0';
+            } else {
+                ind.className = 'w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]';
+                badge.className = 'px-2 py-0.5 text-[11px] font-bold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0';
+            }
+        }
+
+        // --- 시나리오 1: QDC 냉각수 누수 및 3단계 BMC 자동 차단 (Wondimu et al., IEEE ITherm) ---
+        function triggerLeakScenario() {
+            clearTimers();
+            simState.leakActive = true;
+            simState.leakStage = 1;
+            setCameraPreset('rear');
+
+            if (objects3D.leakSensorBeacon) {
+                objects3D.leakSensorBeacon.material.color.setHex(0xf43f5e);
+            }
+
+            // 1단계: 즉시 차압 강하 및 광학 센서 감지
+            simState.pressureKpa = 38.0;
+            updateTelemetryDOM();
+            addLog('1단계:경보', 'QDC 피팅부 PG25 미세 누수 및 차압 급락(ΔP) 감지! SNMP/경광등 알람 발령', 'warn');
+            setBanner(
+                'danger',
+                '1단계: 누수 감지 경보',
+                '랙 하단 물받이(Drip Tray) 광학식 센서가 저전도성 PG25 냉각수를 포착했습니다. 자동 차단 타이머 가동!',
+                '근거: Wondimu et al. (IEEE ITherm, 2023)'
+            );
+
+            // 2단계 (2.2초 후): 솔레노이드 밸브 폐쇄 및 CDU 펌프 정지
+            leakTimers.push(setTimeout(() => {
+                simState.leakStage = 2;
+                simState.flowLpm = 0.0;
+                simState.pressureKpa = 0.0;
+                document.getElementById('subValveState').className = 'text-[10px] text-rose-400 font-bold';
+                document.getElementById('subValveState').textContent = '솔레노이드 밸브: 긴급 폐쇄(CLOSED)';
+                document.getElementById('pumpStatusBadge').className = 'text-[11px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-semibold';
+                document.getElementById('pumpStatusBadge').textContent = 'CDU 펌프 비상 정지';
+                updateTelemetryDOM();
+                addLog('2단계:유량차단', 'CDU 순환 펌프 즉시 정지 및 공급·환수 전동 솔레노이드 밸브 자동 폐쇄 완료', 'danger');
+                setBanner(
+                    'danger',
+                    '2단계: 전자밸브 차단',
+                    '추가 누수를 막기 위해 솔레노이드 밸브가 폐쇄되었습니다. 좌측 PDU 전원부는 분리되어 합선이 예방됩니다.',
+                    '근거: 보고서 제4.2절 & 제6.2절'
+                );
+            }, 2200));
+
+            // 3단계 (4.5초 후): 서버 BMC 연동 Graceful Shutdown
+            leakTimers.push(setTimeout(() => {
+                simState.leakStage = 3;
+                simState.gpuTemp = 42.0;
+                updateTelemetryDOM();
+                addLog('3단계:BMC보호', '서버 BMC(IPMI/Redfish) 연동 완료 → 수랭 GPU 노드 Graceful Shutdown 수행', 'success');
+                setBanner(
+                    'warn',
+                    '3단계: BMC 안전 셧다운 완료',
+                    '누수 감지 후 4.5초 만에 밸브 차단과 서버 안전 종료(Graceful Shutdown)가 완료되어 장비 손상을 막았습니다.',
+                    '근거: Wondimu et al. (IEEE ITherm, 2023)'
+                );
+            }, 4500));
+        }
+
+        // --- 시나리오 2: 상용전원 정전 및 UPS 직결 여부에 따른 냉각수 비등 실험 (Radmard et al., 2025) ---
+        function triggerPowerOutage() {
+            clearTimers();
+            simState.powerOutage = true;
+            simState.outageElapsedSec = 0;
+
+            if (simState.cduOnUps) {
+                addLog('정전발생', '상용전원 정전 발생! 인랙 CDU가 서버와 동일한 온라인 UPS에 직결되어 정상 순환 유지', 'success');
+                setBanner(
+                    'normal',
+                    'UPS 무정전 가동 중',
+                    '상용전원이 차단되었으나 인랙 CDU 이중화 전원이 온라인 UPS에 직결되어 있어 펌프가 멈추지 않고 정상 냉각됩니다.',
+                    '근거: 보고서 제6.2절 (온라인 UPS 필수 직결)'
+                );
+            } else {
+                simState.flowLpm = 0.0;
+                simState.pressureKpa = 12.0;
+                document.getElementById('pumpStatusBadge').className = 'text-[11px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-semibold';
+                document.getElementById('pumpStatusBadge').textContent = 'CDU 전원 상실 (펌프 정지)';
+                addLog('치명적오류', '정전 발생! 서버는 UPS로 가동 중이나 상용전원에 연결된 CDU 펌프가 정지하여 급격한 과열 시작!', 'danger');
+                setBanner(
+                    'danger',
+                    '경고: CDU 펌프 정지 (비등 위험)',
+                    'CDU가 UPS에 연결되지 않아 펌프가 멈췄습니다! 15~30초 내에 콜드플레이트 내부 냉각수가 끓어오릅니다(Boiling)!',
+                    '근거: Radmard et al. (ASME InterPACK, 2025)'
+                );
+            }
+            updateTelemetryDOM();
+        }
+
+        // --- 시나리오 3: 장마철 고습도 결로 테스트 ---
+        function triggerHumiditySpike() {
+            simState.highHumidity = true;
+            recalculateThermodynamics();
+
+            if (simState.dewPointTracking) {
+                addLog('이슬점제어', '실내 습도 80% 상승(이슬점 25.0°C) 감지 → CDU가 냉각수 공급 온도를 28.0°C로 자동 상향하여 결로 차단', 'success');
+                setBanner(
+                    'normal',
+                    '이슬점 자동 추적 활성',
+                    '장마철 습도 상승으로 이슬점이 25°C로 높아졌으나, CDU가 공급수 온도를 이슬점 대비 +3°C(28°C)로 자동 높여 결로를 예방했습니다.',
+                    '근거: 보고서 제4.3절 (이슬점 연동 제어)'
+                );
+            } else {
+                simState.supplyTemp = 22.0; // 이슬점(25°C)보다 낮은 냉수 공급 강제
+                recalculateThermodynamics();
+                addLog('결로경보', '실내 이슬점(25.0°C)보다 공급 냉각수(22.0°C)가 낮아 매니폴드 및 콜드플레이트 표면에 결로 발생!', 'danger');
+                setBanner(
+                    'danger',
+                    '결로(Condensation) 발생 경보!',
+                    '이슬점 추적 기능이 꺼져 있어 냉각수 온도(22°C)가 실내 이슬점(25°C) 이하로 내려가 보드 내 물방울 맺힘이 발생합니다.',
+                    '근거: 보고서 제4.3절'
+                );
+            }
+        }
+
+        function clearTimers() {
+            leakTimers.forEach(t => clearTimeout(t));
+            leakTimers = [];
+        }
+
+        function resetSimulation() {
+            clearTimers();
+            simState.leakActive = false;
+            simState.leakStage = 0;
+            simState.powerOutage = false;
+            simState.outageElapsedSec = 0;
+            simState.highHumidity = false;
+
+            if (objects3D.leakSensorBeacon) {
+                objects3D.leakSensorBeacon.material.color.setHex(0x10b981);
+            }
+            objects3D.gpuServers.forEach(s => {
+                s.coldPlates.color.setHex(0xf59e0b);
+            });
+
+            document.getElementById('subValveState').className = 'text-[10px] text-emerald-400';
+            document.getElementById('subValveState').textContent = '솔레노이드 밸브: 개방(OPEN)';
+            document.getElementById('pumpStatusBadge').className = 'text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold';
+            document.getElementById('pumpStatusBadge').textContent = 'CDU 펌프 정상';
+            document.getElementById('statusSubtext').textContent = '정상 운전 중 · 냉각수(PG25) 순환 및 이슬점 추적 활성';
+
+            addLog('시스템복구', '모든 비상 시나리오가 초기화되고 정상 운전 상태로 복구되었습니다.', 'info');
+            updateConfig();
+        }
+
+        function setCameraPreset(preset) {
+            if (preset === 'overview') {
+                cameraSpherical = { radius: 9.2, theta: 0.55, phi: 1.15 };
+                cameraTarget.set(0, 1.3, 0);
+            } else if (preset === 'rear') {
+                cameraSpherical = { radius: 5.2, theta: 2.85, phi: 1.25 };
+                cameraTarget.set(0.8, 1.5, -0.4);
+            } else if (preset === 'cutaway') {
+                cameraSpherical = { radius: 3.8, theta: 0.35, phi: 1.22 };
+                cameraTarget.set(0.8, 1.8, 0.1);
+            } else if (preset === 'floor') {
+                cameraSpherical = { radius: 5.0, theta: 0.65, phi: 1.48 };
+                cameraTarget.set(0.8, -0.25, 0);
+            }
+            updateCameraPosition();
+        }
+
+        function updateCameraPosition() {
+            if (!camera) return;
+            const sinPhiRadius = Math.sin(cameraSpherical.phi) * cameraSpherical.radius;
+            camera.position.x = cameraTarget.x + sinPhiRadius * Math.sin(cameraSpherical.theta);
+            camera.position.y = cameraTarget.y + Math.cos(cameraSpherical.phi) * cameraSpherical.radius;
+            camera.position.z = cameraTarget.z + sinPhiRadius * Math.cos(cameraSpherical.theta);
+            camera.lookAt(cameraTarget);
+        }
+
+        function setupInteractionEvents() {
+            const dom = renderer.domElement;
+            dom.addEventListener('mousedown', e => {
+                isDragging = true;
+                prevMouse = { x: e.clientX, y: e.clientY };
+            });
+            window.addEventListener('mouseup', () => { isDragging = false; });
+            window.addEventListener('mousemove', e => {
+                if (!isDragging) return;
+                const dx = e.clientX - prevMouse.x;
+                const dy = e.clientY - prevMouse.y;
+                prevMouse = { x: e.clientX, y: e.clientY };
+                cameraSpherical.theta -= dx * 0.007;
+                cameraSpherical.phi = Math.max(0.25, Math.min(1.52, cameraSpherical.phi - dy * 0.007));
+                updateCameraPosition();
+            });
+            dom.addEventListener('wheel', e => {
+                e.preventDefault();
+                cameraSpherical.radius = Math.max(2.8, Math.min(15, cameraSpherical.radius + e.deltaY * 0.005));
+                updateCameraPosition();
+            }, { passive: false });
+
+            // 모바일 터치 지원
+            dom.addEventListener('touchstart', e => {
+                if (e.touches.length === 1) {
+                    isDragging = true;
+                    prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+            }, { passive: true });
+            window.addEventListener('touchend', () => { isDragging = false; });
+            window.addEventListener('touchmove', e => {
+                if (!isDragging || e.touches.length !== 1) return;
+                const dx = e.touches[0].clientX - prevMouse.x;
+                const dy = e.touches[0].clientY - prevMouse.y;
+                prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                cameraSpherical.theta -= dx * 0.007;
+                cameraSpherical.phi = Math.max(0.25, Math.min(1.52, cameraSpherical.phi - dy * 0.007));
+                updateCameraPosition();
+            }, { passive: true });
+        }
+
+        function onWindowResize() {
+            if (!container || !renderer || !camera) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        // --- Vercel 배포 패키지 모달 및 파일 다운로드 함수 ---
+        function openVercelModal() {
+            const modal = document.getElementById('vercelModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        }
+
+        function closeVercelModal() {
+            const modal = document.getElementById('vercelModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        function showDownloadFeedback(msg) {
+            const fb = document.getElementById('downloadFeedback');
+            if (!fb) return;
+            fb.textContent = msg;
+            fb.classList.remove('hidden');
+        }
+
+        function downloadIndexHtml() {
+            // 현재 DOM을 복제한 뒤, 런타임에 생성된 Three.js <canvas>와 이벤트 로그를 비워 깨끗한 원본 index.html 생성
+            const clone = document.documentElement.cloneNode(true);
+            const cloneCanvasContainer = clone.querySelector('#canvasContainer');
+            if (cloneCanvasContainer) cloneCanvasContainer.innerHTML = '';
+
+            const cloneLogContainer = clone.querySelector('#eventLogContainer');
+            if (cloneLogContainer) cloneLogContainer.innerHTML = '';
+
+            const cloneModal = clone.querySelector('#vercelModal');
+            if (cloneModal) {
+                cloneModal.classList.add('hidden');
+                cloneModal.classList.remove('flex');
+            }
+
+            const cloneFeedback = clone.querySelector('#downloadFeedback');
+            if (cloneFeedback) cloneFeedback.classList.add('hidden');
+
+            const htmlContent = '<!DOCTYPE html>\n' + clone.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'index.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showDownloadFeedback('✅ index.html 다운로드 완료! 이제 vercel.json과 함께 폴더에 넣고 배포하세요.');
+            addLog('Vercel패키지', 'Vercel 표준 진입 파일(index.html)이 생성되어 다운로드되었습니다.', 'success');
+        }
+
+        function downloadVercelJson() {
+            const configObj = {
+                version: 2,
+                cleanUrls: true,
+                rewrites: [
+                    { source: "/(.*)", destination: "/index.html" }
+                ]
+            };
+            const jsonStr = JSON.stringify(configObj, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'vercel.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showDownloadFeedback('✅ vercel.json 설정 파일 다운로드 완료!');
+            addLog('Vercel패키지', 'Vercel 라우팅 설정 파일(vercel.json)이 다운로드되었습니다.', 'info');
+        }
+
+        function copyCommand(text, btnEl) {
+            const tempInput = document.createElement('textarea');
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+
+            const origText = btnEl.textContent;
+            btnEl.textContent = '복사됨 ✓';
+            setTimeout(() => { btnEl.textContent = origText; }, 1800);
+        }
+
+        function copyVercelJsonText(btnEl) {
+            const preview = document.getElementById('vercelJsonPreview');
+            if (!preview) return;
+            copyCommand(preview.textContent, btnEl);
+        }
+
+        let lastFrameTime = performance.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const now = performance.now();
+            const dt = (now - lastFrameTime) / 1000;
+            lastFrameTime = now;
+
+            // 정전 시 UPS 미연결 상태라면 매 프레임마다 냉각수 및 GPU 온도 급상승 (15~30초 내 비등 재현)
+            if (simState.powerOutage && !simState.cduOnUps) {
+                simState.outageElapsedSec += dt;
+                simState.returnTemp = Math.min(104.5, simState.returnTemp + dt * 3.2);
+                simState.gpuTemp = Math.min(115.0, simState.gpuTemp + dt * 2.8);
+                simState.pressureKpa = Math.min(240, simState.pressureKpa + dt * 7.5);
+                updateTelemetryDOM();
+
+                // 콜드플레이트 적열 색상 변화
+                objects3D.gpuServers.forEach(s => {
+                    if (simState.returnTemp > 85) {
+                        s.coldPlates.color.setHex(0xef4444);
+                    }
+                });
+            }
+
+            // 1. 냉각수 순환 입자 애니메이션 (펌프가 가동 중일 때만 이동)
+            const pumpRunning = simState.flowLpm > 0;
+            objects3D.coolantParticles.forEach(p => {
+                p.mesh.visible = pumpRunning;
+                if (pumpRunning) {
+                    p.progress = (p.progress + dt * 0.55) % 1.0;
+                    const maxH = 0.7 + simState.gpuNodes * 0.5;
+                    if (p.isSupply) {
+                        // 하단 CDU에서 수직 공급 매니폴드를 타고 상승
+                        p.mesh.position.set(0.8 + 0.32, 0.4 + p.progress * maxH, -0.74);
+                    } else {
+                        // 상단에서 환수 매니폴드를 타고 하강
+                        p.mesh.position.set(0.8 + 0.46, 0.4 + (1.0 - p.progress) * maxH, -0.74);
+                    }
+                }
+            });
+
+            // 2. 블랭킹 패널 미장착 시 빈 슬롯을 통한 열기 역류(Recirculation) 입자 애니메이션
+            const showRecirc = (simState.gpuNodes < 4 && !simState.blankingPanels);
+            objects3D.recircParticles.forEach((rp, idx) => {
+                rp.mesh.visible = showRecirc;
+                if (showRecirc) {
+                    rp.progress = (rp.progress + dt * 0.6) % 1.0;
+                    const emptySlotY = 0.85 + simState.gpuNodes * 0.5;
+                    // 후면(-0.7)에서 빈 슬롯을 통과해 전면(+0.8)으로 돌아 들어가는 곡선 궤적
+                    const zPos = -0.7 + rp.progress * 1.5;
+                    const xOffset = Math.sin(rp.progress * Math.PI + idx) * 0.35;
+                    rp.mesh.position.set(0.8 + xOffset, emptySlotY, zPos);
+                }
+            });
+
+            // 3. 누수 시나리오 시 QDC에서 물받이(Drip Tray)로 떨어지는 PG25 액적 애니메이션
+            const showDroplets = (simState.leakActive && simState.leakStage === 1);
+            objects3D.leakDroplets.forEach(ld => {
+                ld.mesh.visible = showDroplets;
+                if (showDroplets) {
+                    ld.progress = (ld.progress + dt * 1.1) % 1.0;
+                    const startY = 1.35;
+                    const curY = startY - ld.progress * 1.25;
+                    ld.mesh.position.set(
+                        0.8 + 0.38 + ld.vx * ld.progress,
+                        Math.max(0.08, curY),
+                        -0.68 + ld.vz * ld.progress
+                    );
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            initThreeJS();
+            updateConfig();
+            addLog('초기화완료', '인랙(In-Rack) 콜드플레이트 3D 디지털 트윈 시뮬레이터가 시작되었습니다.', 'success');
+            animate();
+        };
+    </script>
+</body>
+</html>
