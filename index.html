@@ -9,7 +9,7 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="소형 전산실 콜드플레이트 수랭 3D 디지털 트윈 시뮬레이터">
     <meta property="og:description" content="인랙 CDU 방열(L2A/L2L/RDHx), 바닥 활하중(500kgf/m²) 분산 가대, 3단계 누수 자동 차단 시뮬레이션">
-    <!-- Vercel 배포 시 favicon.ico 404 에러 방지를 위한 인라인 SVG 파비콘 -->
+    <!-- favicon.ico 404 방지를 위한 인라인 SVG 파비콘 -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f172a'/%3E%3Cpath d='M32 10C32 10 16 28 16 40C16 48.8 23.2 56 32 56C40.8 56 48 48.8 48 40C48 28 32 10 32 10Z' fill='%2338bdf8'/%3E%3Ccircle cx='32' cy='40' r='8' fill='%23090d16'/%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -74,10 +74,7 @@
             <button onclick="setCameraPreset('rear')" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/40 transition">후면 매니폴드·PDU 분리</button>
             <button onclick="setCameraPreset('cutaway')" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 transition">서버 내부 콜드플레이트</button>
             <button onclick="setCameraPreset('floor')" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 transition">하부 슬래브 하중 가대</button>
-            <span class="h-4 w-px bg-slate-700 mx-1 hidden sm:inline-block"></span>
-            <button onclick="openVercelModal()" class="px-3 py-1 text-xs font-bold rounded-lg bg-gradient-to-r from-indigo-600 to-sky-500 hover:from-indigo-500 hover:to-sky-400 text-white shadow-md shadow-sky-500/20 border border-sky-400/40 transition flex items-center gap-1.5">
-                <span>▲</span> Vercel 배포 패키지
-            </button>
+
         </div>
     </header>
 
@@ -304,87 +301,7 @@
         </section>
     </main>
 
-    <!-- Vercel 배포 전용 모달 (index.html & vercel.json 원클릭 다운로드 및 배포 안내) -->
-    <div id="vercelModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-        <div class="glass-panel rounded-2xl max-w-2xl w-full p-5 sm:p-6 border border-slate-700 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-lg bg-white text-slate-950 flex items-center justify-center font-black text-lg">▲</div>
-                    <div>
-                        <h3 class="text-base font-bold text-white">Vercel 원클릭 배포 패키지 생성기</h3>
-                        <p class="text-xs text-slate-400">별도 빌드 설정(Build Step) 없이 정적 사이트로 즉시 배포 가능한 파일 구성입니다.</p>
-                    </div>
-                </div>
-                <button onclick="closeVercelModal()" class="text-slate-400 hover:text-white px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-xs font-semibold transition">닫기 ✕</button>
-            </div>
 
-            <!-- 1단계: 배포용 파일 다운로드 -->
-            <div class="bg-slate-900/90 rounded-xl p-4 border border-slate-800 flex flex-col gap-3">
-                <div class="text-xs font-bold text-sky-400 uppercase tracking-wider">Step 1. 배포용 파일 컴퓨터에 저장 (새 폴더에 함께 저장)</div>
-                <p class="text-xs text-slate-300 leading-relaxed">
-                    Vercel은 기본 진입 파일로 <code class="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300">index.html</code>을 인식합니다. 아래 버튼을 누르면 현재 시뮬레이터가 깨끗한 초기 상태의 <code class="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300">index.html</code>과 <code class="px-1.5 py-0.5 rounded bg-slate-800 text-emerald-300">vercel.json</code>으로 즉시 다운로드됩니다.
-                </p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                    <button onclick="downloadIndexHtml()" class="py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-sky-600/20 transition">
-                        <span>📥</span> 1. index.html 다운로드 (필수)
-                    </button>
-                    <button onclick="downloadVercelJson()" class="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 font-bold text-xs flex items-center justify-center gap-2 transition">
-                        <span>⚙️</span> 2. vercel.json 다운로드 (권장)
-                    </button>
-                </div>
-                <div id="downloadFeedback" class="hidden text-xs text-emerald-400 font-medium bg-emerald-950/40 border border-emerald-500/30 rounded-lg px-3 py-2"></div>
-            </div>
-
-            <!-- 2단계: 2가지 배포 방법 안내 -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <!-- 방법 A: GitHub 연동 -->
-                <div class="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 flex flex-col gap-2">
-                    <div class="text-xs font-bold text-white flex items-center justify-between">
-                        <span>방법 A. GitHub 연동 배포 (가장 권장)</span>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-300">무료·자동배포</span>
-                    </div>
-                    <ol class="text-xs text-slate-300 space-y-1.5 list-decimal list-inside leading-relaxed">
-                        <li>GitHub에 새 저장소(Repository)를 생성합니다.</li>
-                        <li>다운로드한 <b>index.html</b>과 <b>vercel.json</b>을 업로드(Commit)합니다.</li>
-                        <li><a href="https://vercel.com/new" target="_blank" rel="noopener noreferrer" class="text-sky-400 underline hover:text-sky-300">vercel.com/new</a>에 접속해 해당 저장소를 <b>Import</b>합니다.</li>
-                        <li>Framework Preset은 <b>Other</b> 그대로 두고 <b>Deploy</b>를 클릭하면 10초 내 배포가 완료됩니다.</li>
-                    </ol>
-                </div>
-
-                <!-- 방법 B: Vercel CLI 즉시 배포 -->
-                <div class="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 flex flex-col gap-2 justify-between">
-                    <div>
-                        <div class="text-xs font-bold text-white flex items-center justify-between mb-2">
-                            <span>방법 B. 터미널 CLI 10초 배포</span>
-                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">Git 불필요</span>
-                        </div>
-                        <p class="text-xs text-slate-300 leading-relaxed mb-2">
-                            새 폴더(예: <code class="text-amber-300">cold-plate-sim</code>) 안에 <code class="text-amber-300">index.html</code>과 <code class="text-emerald-300">vercel.json</code>을 넣은 뒤, 해당 폴더 터미널에서 아래 명령어를 실행하세요:
-                        </p>
-                    </div>
-                    <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between gap-2">
-                        <code class="text-xs text-sky-300 font-mono">npx vercel --prod</code>
-                        <button onclick="copyCommand('npx vercel --prod', this)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-200 font-semibold shrink-0 transition">복사</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- vercel.json 미리보기 -->
-            <div class="bg-slate-950/90 rounded-xl p-3.5 border border-slate-800">
-                <div class="flex items-center justify-between mb-1.5">
-                    <span class="text-[11px] font-semibold text-slate-400">포함된 vercel.json 라우팅 및 보안 헤더 구성</span>
-                    <button onclick="copyVercelJsonText(this)" class="text-[11px] text-sky-400 hover:text-sky-300 font-semibold">JSON 코드 복사</button>
-                </div>
-                <pre id="vercelJsonPreview" class="text-[11px] text-slate-300 font-mono overflow-x-auto leading-relaxed">{
-  "version": 2,
-  "cleanUrls": true,
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
-}</pre>
-            </div>
-        </div>
-    </div>
 
     <script>
         // --- 시뮬레이션 상태 변수 ---
@@ -1211,104 +1128,7 @@
             renderer.setSize(container.clientWidth, container.clientHeight);
         }
 
-        // --- Vercel 배포 패키지 모달 및 파일 다운로드 함수 ---
-        function openVercelModal() {
-            const modal = document.getElementById('vercelModal');
-            if (modal) {
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-            }
-        }
 
-        function closeVercelModal() {
-            const modal = document.getElementById('vercelModal');
-            if (modal) {
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
-            }
-        }
-
-        function showDownloadFeedback(msg) {
-            const fb = document.getElementById('downloadFeedback');
-            if (!fb) return;
-            fb.textContent = msg;
-            fb.classList.remove('hidden');
-        }
-
-        function downloadIndexHtml() {
-            // 현재 DOM을 복제한 뒤, 런타임에 생성된 Three.js <canvas>와 이벤트 로그를 비워 깨끗한 원본 index.html 생성
-            const clone = document.documentElement.cloneNode(true);
-            const cloneCanvasContainer = clone.querySelector('#canvasContainer');
-            if (cloneCanvasContainer) cloneCanvasContainer.innerHTML = '';
-
-            const cloneLogContainer = clone.querySelector('#eventLogContainer');
-            if (cloneLogContainer) cloneLogContainer.innerHTML = '';
-
-            const cloneModal = clone.querySelector('#vercelModal');
-            if (cloneModal) {
-                cloneModal.classList.add('hidden');
-                cloneModal.classList.remove('flex');
-            }
-
-            const cloneFeedback = clone.querySelector('#downloadFeedback');
-            if (cloneFeedback) cloneFeedback.classList.add('hidden');
-
-            const htmlContent = '<!DOCTYPE html>\n' + clone.outerHTML;
-            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'index.html';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            showDownloadFeedback('✅ index.html 다운로드 완료! 이제 vercel.json과 함께 폴더에 넣고 배포하세요.');
-            addLog('Vercel패키지', 'Vercel 표준 진입 파일(index.html)이 생성되어 다운로드되었습니다.', 'success');
-        }
-
-        function downloadVercelJson() {
-            const configObj = {
-                version: 2,
-                cleanUrls: true,
-                rewrites: [
-                    { source: "/(.*)", destination: "/index.html" }
-                ]
-            };
-            const jsonStr = JSON.stringify(configObj, null, 2);
-            const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'vercel.json';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            showDownloadFeedback('✅ vercel.json 설정 파일 다운로드 완료!');
-            addLog('Vercel패키지', 'Vercel 라우팅 설정 파일(vercel.json)이 다운로드되었습니다.', 'info');
-        }
-
-        function copyCommand(text, btnEl) {
-            const tempInput = document.createElement('textarea');
-            tempInput.value = text;
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            document.execCommand('copy');
-            document.body.removeChild(tempInput);
-
-            const origText = btnEl.textContent;
-            btnEl.textContent = '복사됨 ✓';
-            setTimeout(() => { btnEl.textContent = origText; }, 1800);
-        }
-
-        function copyVercelJsonText(btnEl) {
-            const preview = document.getElementById('vercelJsonPreview');
-            if (!preview) return;
-            copyCommand(preview.textContent, btnEl);
-        }
 
         let lastFrameTime = performance.now();
 

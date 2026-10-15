@@ -41,15 +41,4 @@ python -m http.server 3000
 npx serve .
 ```
 
----
 
-## 🌐 Vercel 원클릭 배포
-
-### 방법 A: Vercel CLI (10초 배포)
-```bash
-npx vercel --prod
-```
-
-### 방법 B: GitHub 연동
-1. 본 폴더의 `index.html`과 `vercel.json`을 GitHub 저장소에 푸시합니다.
-2. [vercel.com/new](https://vercel.com/new)에서 저장소를 Import하고 **Deploy**를 누르면 즉시 글로벌 CDN에 배포됩니다.
